@@ -1,11 +1,11 @@
 # jandi-picker
 
-Obsidian TIL 노트를 매일 20:00에 자동으로 이 레포에 게시해서 GitHub 잔디를 심는 자동화.
+Obsidian TIL 노트를 매일 16:30에 자동으로 이 레포에 게시해서 GitHub 잔디를 심는 자동화.
 
 ## 동작
 
-1. `pmset` 이 19:58에 맥을 깨움
-2. `launchd` 가 20:00에 `scripts/publish_til.py` 실행
+1. `pmset` 이 16:28에 맥을 깨움
+2. `launchd` 가 16:30에 `scripts/publish_til.py` 실행
 3. 스크립트가 오늘자 Obsidian TIL 노트를 찾아 **제목 / 요약 / 학습 토픽** 만 추출
 4. `TIL/YYYY/MM/YYYY-MM-DD.md` 로 게시, `TIL: YYYY-MM-DD` 커밋 후 push
 
@@ -15,7 +15,7 @@ Obsidian TIL 노트를 매일 20:00에 자동으로 이 레포에 게시해서 G
 
 ```bash
 ./scripts/install.sh
-sudo pmset repeat wakeorpoweron MTWRFSU 19:58:00
+sudo pmset repeat wakeorpoweron MTWRFSU 16:28:00
 ```
 
 ## 추출 규칙
