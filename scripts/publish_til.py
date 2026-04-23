@@ -8,7 +8,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-VAULT_TIL_DIR = Path("/Users/zephyr/Documents/내거/TIL")
+VAULT_TIL_DIR = Path("/Users/zephyr/dev/내거/TIL")
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PUBLISH_ROOT = REPO_ROOT / "TIL"
 

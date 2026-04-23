@@ -2,7 +2,7 @@
 
 본 레포 범위에서 당장 다루지 않고 미뤄둔 후속 항목들.
 
-## 1. stderr `Operation not permitted` 원인 규명 및 가설 검증
+## 1. stderr `Operation not permitted` 원인 규명 및 가설 검증 ✅ 해결 (2026-04-23)
 
 **증상**
 `logs/stderr.log` 에 다음 에러가 반복적으로 기록되어 있었음:
@@ -11,25 +11,21 @@
 /Applications/Xcode.app/Contents/Developer/usr/bin/python3: can't open file '/Users/zephyr/Documents/projects/jandi-picker/scripts/publish_til.py': [Errno 1] Operation not permitted
 ```
 
-**현재까지 파악**
-- 에러 경로는 Xcode 번들 내부 python3 (`/Applications/Xcode.app/Contents/Developer/usr/bin/python3`)
-- 현 `install.sh` 는 `/usr/bin/python3` 로 하드핀 — 과거 설치 시점엔 하드핀이 없어 Xcode python 이 잡혔을 가능성
-- launchd 컨텍스트는 사용자 터미널과 보안 컨텍스트가 달라, Xcode 내부 바이너리가 사용자 디렉터리 스크립트를 여는 데 Full Disk Access 가 필요
-- 2026-04-22 15:40 `install.sh` 재실행으로 plist 의 Python 경로가 `/usr/bin/python3` 로 갱신됨
-- 동일 시점 `/usr/bin/python3 scripts/publish_til.py` 수동 실행은 성공 (exit 0, commit/push 완료)
+**결론: 가설 기각 → 근본 원인은 `~/Documents/` TCC 보호**
+- `/usr/bin/python3` 하드핀 이후에도 launchd 컨텍스트에서는 실제로는 Xcode CLT shim(`/Applications/Xcode.app/Contents/Developer/usr/bin/python3`) 이 호출됨 — macOS 의 `/usr/bin/python3` 자체가 Xcode shim 이기 때문.
+- 문제는 Python 바이너리가 아니라 **대상 경로**: `~/Documents/` 는 macOS TCC 보호 영역으로, launchd 데몬 컨텍스트의 Xcode python 바이너리에는 Full Disk Access 가 부여되지 않음.
+- FDA 를 Xcode python 에 명시적으로 부여해봐도 launchd 컨텍스트의 TCC 평가는 여전히 차단됨 (캐시·데몬 컨텍스트 특수성).
 
-**가설**
-Python 경로가 시스템 `/usr/bin/python3` 로 고정된 이상, launchd 자동 실행도 더 이상 *Operation not permitted* 으로 실패하지 않는다.
+**해결 — 레포·볼트를 TCC 보호 영역 밖으로 이동 (B2 경로)**
+- `~/Documents/projects/jandi-picker/` → `~/dev/jandi-picker/`
+- `~/Documents/내거/` → `~/dev/내거/`
+- `scripts/publish_til.py` 의 `VAULT_TIL_DIR` 및 `.claude/settings.local.json` 의 Read 권한 패턴을 새 경로로 갱신
+- `./scripts/install.sh` 재실행으로 plist 의 모든 경로(`ProgramArguments[1]`, `WorkingDirectory`, `StandardOutPath`, `StandardErrorPath`) 를 새 경로로 재렌더
+- 2026-04-23 13:57 `launchctl kickstart` 결과: stderr 에 신규 TCC 에러 0건, stdout 에 `[2026-04-23] 게시 완료` 로그, `TIL: 2026-04-23` 커밋 자동 생성·푸시 완료 (커밋 `17a161d`).
 
-**검증 방법**
-- 2026-04-22 16:30 이후 `tail -n 20 logs/stdout.log logs/stderr.log` 확인
-  - `stderr.log` 에 새 타임스탬프의 에러가 **추가되지 않으면** 가설 성립
-  - 오늘은 수동 실행으로 오늘자 TIL 파일이 이미 커밋됐으므로, 스크립트는 "skip" 경로를 탈 것 → `stdout.log` 에 skip 로그만 기록되면 정상
-- 2026-04-23 아침 한 번 더 확인 (새 하루, skip 아닌 정상 경로)
-
-**티켓을 닫는 조건**
-- 위 검증에서 가설이 맞으면 원인·해결을 README 또는 별도 노트에 기록하고 닫음
-- 가설이 틀리면 Full Disk Access 설정을 System Settings → Privacy & Security 에서 `/usr/bin/python3` 또는 launchd 대상으로 부여하는 방안 검토
+**참고 (가설이 틀린 이유)**
+- "시스템 Python 경로 하드핀만으로 충분하다" 가정은 macOS 의 `/usr/bin/python3` → Xcode CLT shim 이라는 사실을 간과함.
+- launchd 의 TCC 평가는 터미널 컨텍스트와 분리되어 있어 FDA UI 에서 체크해도 반영되지 않는 엣지가 존재.
 
 ---
 
