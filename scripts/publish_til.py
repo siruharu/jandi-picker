@@ -24,12 +24,38 @@ TOPICS_HEADING = "### 개념"
 # Strings that indicate the user hasn't filled in the placeholder.
 PLACEHOLDER_MARKERS = ("한 줄 요약", "한 문장으로 압축", "YOUR", "TODO")
 
+# Notes carrying any of these tags are company material: nothing from them
+# (not even the title) may reach this public repo.
+PRIVATE_TAGS = {"업무", "회사", "비공개"}
 
-def find_today_til(today):
+
+def find_tils(today):
     # Notes are named either "2026-10-06 (화).md" or "TIL — 2026-10-06 (화).md".
     date_str = today.strftime("%Y-%m-%d")
-    matches = sorted(VAULT_TIL_DIR.glob(f"*{date_str}*.md"))
-    return matches[0] if matches else None
+    return sorted(VAULT_TIL_DIR.glob(f"*{date_str}*.md"))
+
+
+def extract_tags(content):
+    # Frontmatter `tags:` in block ("  - a") or inline ("[a, b]") form, plus
+    # inline `#tag` in the body.
+    tags = set()
+    m = re.match(r"^---\n(.*?)\n---\n", content, re.DOTALL)
+    if m:
+        in_tags = False
+        for line in m.group(1).splitlines():
+            if re.match(r"^tags\s*:", line):
+                in_tags = True
+                tags.update(re.split(r"[,\s]+", line.partition(":")[2].strip(" []")))
+            elif in_tags and line.lstrip().startswith("-"):
+                tags.add(line.lstrip()[1:].strip())
+            else:
+                in_tags = False
+    tags.update(re.findall(r"(?<!\S)#([^\s#]+)", content))
+    return {t.strip("\"'#") for t in tags if t}
+
+
+def is_private(content):
+    return bool(extract_tags(content) & PRIVATE_TAGS)
 
 
 def parse_frontmatter(content):
@@ -118,7 +144,10 @@ def main():
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8")
 
-    today = datetime.now()
+    # An optional YYYY-MM-DD argument backfills a missed day; the commit is
+    # dated 16:30 of that day so it lands on the right square of the graph.
+    backfill = len(sys.argv) > 1
+    today = datetime.strptime(sys.argv[1], "%Y-%m-%d") if backfill else datetime.now()
     date_str = today.strftime("%Y-%m-%d")
 
     dst = PUBLISH_ROOT / today.strftime("%Y") / today.strftime("%m") / f"{date_str}.md"
@@ -126,14 +155,18 @@ def main():
         print(f"[{date_str}] 이미 게시됨 — skip: {dst}")
         return 0
 
-    src = find_today_til(today)
-    if src is None:
+    notes = [p.read_text(encoding="utf-8") for p in find_tils(today)]
+    public = [n for n in notes if not is_private(n)]
+    if not public:
         title = date_str
         summary = ""
         topics = []
-        note = "오늘은 TIL을 남기지 못했습니다."
+        if notes:
+            note = "오늘 학습한 내용은 비공개 자료라 게시하지 않습니다."
+        else:
+            note = "오늘은 TIL을 남기지 못했습니다."
     else:
-        fm, body = parse_frontmatter(src.read_text(encoding="utf-8"))
+        fm, body = parse_frontmatter(public[0])
         title = fm.get("title") or date_str
         summary = extract_summary(body)
         topics = extract_topics(body)
@@ -148,6 +181,9 @@ def main():
 
     rel = dst.relative_to(REPO_ROOT)
     run_git("add", str(rel))
+    if backfill:
+        stamp = today.strftime("%Y-%m-%dT16:30:00")
+        os.environ["GIT_AUTHOR_DATE"] = os.environ["GIT_COMMITTER_DATE"] = stamp
     run_git("commit", "-m", f"TIL: {date_str}")
     run_git("push")
     print(f"[{date_str}] 게시 완료 → {rel}")

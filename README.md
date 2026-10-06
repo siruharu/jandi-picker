@@ -49,6 +49,16 @@ Unregister-ScheduledTask jandi-picker -Confirm:$false    # 제거
 
 TIL 파일이 없거나 내용이 비어있는 날도 **제목만** 올려 잔디를 유지한다.
 
+### 비공개 노트
+
+`업무` / `회사` / `비공개` 태그(프론트매터 `tags` 또는 본문 `#태그`)가 붙은 노트는 회사 자료로 보고 제목을 포함해 아무 내용도 게시하지 않는다. 같은 날짜에 태그 없는 노트가 있으면 그것을 게시하고, 전부 비공개면 날짜만 올린다. 태그 목록은 `publish_til.py` 의 `PRIVATE_TAGS`.
+
+### 빠진 날짜 채우기
+
+```bash
+python scripts/publish_til.py 2026-10-02   # 해당 날짜 16:30 으로 커밋
+```
+
 ## 확인 명령
 
 ```bash
