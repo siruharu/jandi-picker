@@ -2,13 +2,19 @@
 # Parse today's Obsidian TIL note, extract title/summary/topics,
 # and publish a trimmed markdown into this repo with a git commit + push.
 
+import os
 import re
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
-VAULT_TIL_DIR = Path("/Users/zephyr/dev/내거/TIL")
+# Override with JANDI_VAULT_TIL_DIR; otherwise fall back to the per-OS vault location.
+if sys.platform == "win32":
+    DEFAULT_VAULT_TIL_DIR = Path.home() / "Documents" / "TIL" / "TIL"
+else:
+    DEFAULT_VAULT_TIL_DIR = Path("/Users/zephyr/dev/내거/TIL")
+VAULT_TIL_DIR = Path(os.environ.get("JANDI_VAULT_TIL_DIR") or DEFAULT_VAULT_TIL_DIR)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PUBLISH_ROOT = REPO_ROOT / "TIL"
 
@@ -20,8 +26,9 @@ PLACEHOLDER_MARKERS = ("한 줄 요약", "한 문장으로 압축", "YOUR", "TOD
 
 
 def find_today_til(today):
-    prefix = today.strftime("%Y-%m-%d")
-    matches = sorted(VAULT_TIL_DIR.glob(f"{prefix}*.md"))
+    # Notes are named either "2026-10-06 (화).md" or "TIL — 2026-10-06 (화).md".
+    date_str = today.strftime("%Y-%m-%d")
+    matches = sorted(VAULT_TIL_DIR.glob(f"*{date_str}*.md"))
     return matches[0] if matches else None
 
 
@@ -107,6 +114,10 @@ def run_git(*args):
 
 
 def main():
+    # Windows redirects stdout with the ANSI code page; force UTF-8 for the log files.
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8")
+
     today = datetime.now()
     date_str = today.strftime("%Y-%m-%d")
 
@@ -131,7 +142,9 @@ def main():
             note = "오늘은 기록할 내용이 아직 정리되지 않았습니다."
 
     dst.parent.mkdir(parents=True, exist_ok=True)
-    dst.write_text(render(title, summary, topics, note), encoding="utf-8")
+    # newline="\n" keeps LF on Windows, matching the files published from macOS.
+    with dst.open("w", encoding="utf-8", newline="\n") as f:
+        f.write(render(title, summary, topics, note))
 
     rel = dst.relative_to(REPO_ROOT)
     run_git("add", str(rel))

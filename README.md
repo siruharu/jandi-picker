@@ -18,6 +18,27 @@ Obsidian TIL 노트를 매일 16:30에 자동으로 이 레포에 게시해서 G
 sudo pmset repeat wakeorpoweron MTWRFSU 16:28:00
 ```
 
+### Windows
+
+`launchd` + `pmset` 대신 작업 스케줄러를 쓴다 (절전 해제는 작업의 `WakeToRun` 옵션).
+
+```powershell
+winget install Python.Python.3.12        # Python 이 없을 때만
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1            # 기본 16:30
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -Time 18:00
+```
+
+- 볼트 TIL 경로 기본값은 `%USERPROFILE%\Documents\TIL\TIL`. 다른 위치면 환경변수 `JANDI_VAULT_TIL_DIR` 로 지정.
+- 예약 시각에 PC 가 꺼져 있었으면 다음에 켜질 때 실행된다 (`StartWhenAvailable`).
+- 로그인된 사용자 세션에서 실행되므로 push 인증은 Git Credential Manager 를 그대로 쓴다.
+
+```powershell
+Get-ScheduledTask jandi-picker | Get-ScheduledTaskInfo   # 등록·마지막 실행 결과
+Start-ScheduledTask jandi-picker                         # 수동 실행
+Get-Content logs\stdout.log -Tail 20 -Encoding UTF8      # 실행 로그
+Unregister-ScheduledTask jandi-picker -Confirm:$false    # 제거
+```
+
 ## 추출 규칙
 
 | 항목 | 출처 |
